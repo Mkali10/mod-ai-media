@@ -240,6 +240,9 @@ bash scripts/build.sh
 
 After rebuilding, repeat `file` and `ldd` validation before replacing a loaded module. Do not overwrite a module while it is loaded; unload it during a controlled maintenance/test window first.
 
+<img width="1091" height="682" alt="image" src="https://github.com/user-attachments/assets/f05a081a-3b06-41d1-9860-147f8cd1007c" />
+
+
 ## Troubleshooting
 
 ### `build: No such file or directory`
