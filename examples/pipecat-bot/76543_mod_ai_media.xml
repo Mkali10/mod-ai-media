@@ -1,6 +1,8 @@
 <include>
   <extension name="mod_ai_media_pipecat_test">
     <condition field="destination_number" expression="^76543$">
+      <action application="ring_ready"/>
+      <action application="sleep" data="1500"/>
       <action application="answer"/>
       <action application="sleep" data="250"/>
       <action application="ai_media" data="start ws://127.0.0.1:8765/ws pipecat_test"/>
