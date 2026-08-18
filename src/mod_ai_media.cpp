@@ -65,14 +65,16 @@ void start_media(switch_core_session_t* fs_session, const char* url, const char*
         stream->write_function(stream, "-ERR channel could not be pre-answered\n");
         return;
     }
-    const auto* read_impl = switch_core_session_get_read_impl(fs_session);
-    const auto* write_impl = switch_core_session_get_write_impl(fs_session);
-    if (!read_impl || !write_impl) {
+    switch_codec_implementation_t read_impl = {};
+    switch_codec_implementation_t write_impl = {};
+    switch_core_session_get_read_impl(fs_session, &read_impl);
+    switch_core_session_get_write_impl(fs_session, &write_impl);
+    if (!read_impl.actual_samples_per_second || !write_impl.actual_samples_per_second) {
         stream->write_function(stream, "-ERR channel codecs unavailable\n");
         return;
     }
-    const std::uint32_t input_rate = read_impl->actual_samples_per_second;
-    const std::uint32_t output_rate = write_impl->actual_samples_per_second;
+    const std::uint32_t input_rate = read_impl.actual_samples_per_second;
+    const std::uint32_t output_rate = write_impl.actual_samples_per_second;
     const std::size_t capacity = static_cast<std::size_t>(output_rate) * 2U * 2U;
     auto session = ai_media::Session::create(switch_core_session_get_uuid(fs_session), url,
         input_rate, output_rate, metadata ? metadata : "", capacity);
