@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.16)
+project(mod_ai_media VERSION 0.1.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FREESWITCH REQUIRED freeswitch)
+
+add_library(ai_media_core STATIC
+    src/pcm_ring_buffer.cpp
+    src/protocol.cpp
+)
+target_include_directories(ai_media_core PUBLIC include)
+
+add_library(mod_ai_media MODULE src/mod_ai_media.cpp)
+set_target_properties(mod_ai_media PROPERTIES PREFIX "")
+target_include_directories(mod_ai_media PRIVATE
+    include
+    ${FREESWITCH_INCLUDE_DIRS}
+)
+target_link_directories(mod_ai_media PRIVATE ${FREESWITCH_LIBRARY_DIRS})
+target_compile_options(mod_ai_media PRIVATE ${FREESWITCH_CFLAGS_OTHER})
+target_link_libraries(mod_ai_media PRIVATE ai_media_core ${FREESWITCH_LIBRARIES})
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(ai_media_tests tests/test_main.cpp)
+    target_link_libraries(ai_media_tests PRIVATE ai_media_core)
+    add_test(NAME ai_media_tests COMMAND ai_media_tests)
+endif()
+
