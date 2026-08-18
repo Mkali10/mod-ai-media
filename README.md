@@ -11,6 +11,7 @@ Language-neutral bidirectional raw-audio module for FreeSWITCH.
 - Inject playback through a bounded per-call queue.
 - Support `start`, `stop`, `clear`, `pause`, `resume`, and `status`.
 - Keep the server implementation language-neutral (Python, .NET, Node.js, Go, Java, or Rust).
+- Require TLS (`wss://`) for call audio and metadata in transit.
 
 ## Safety
 
@@ -20,6 +21,7 @@ This module is developed side-by-side with `mod_audio_stream`; it does not repla
 
 ```bash
 export PKG_CONFIG_PATH=/usr/local/freeswitch/lib/pkgconfig
+sudo apt-get install -y cmake g++ pkg-config libevent-dev libssl-dev zlib1g-dev
 cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build --parallel
 ctest --test-dir build --output-on-failure
