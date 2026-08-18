@@ -8,21 +8,32 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(FREESWITCH REQUIRED freeswitch)
 
+include(FetchContent)
+set(USE_TLS ON CACHE BOOL "Build libwsc with TLS" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static dependencies" FORCE)
+FetchContent_Declare(
+    libwsc
+    GIT_REPOSITORY https://github.com/amigniter/libwsc.git
+    GIT_TAG 366fa04186cda066165f10326002681adaf65d98
+)
+FetchContent_MakeAvailable(libwsc)
+
 add_library(ai_media_core STATIC
     src/pcm_ring_buffer.cpp
     src/protocol.cpp
 )
 target_include_directories(ai_media_core PUBLIC include)
 
-add_library(mod_ai_media MODULE src/mod_ai_media.cpp)
+add_library(mod_ai_media MODULE src/mod_ai_media.cpp src/session.cpp)
 set_target_properties(mod_ai_media PROPERTIES PREFIX "")
 target_include_directories(mod_ai_media PRIVATE
     include
     ${FREESWITCH_INCLUDE_DIRS}
+    ${libwsc_SOURCE_DIR}/src
 )
 target_link_directories(mod_ai_media PRIVATE ${FREESWITCH_LIBRARY_DIRS})
 target_compile_options(mod_ai_media PRIVATE ${FREESWITCH_CFLAGS_OTHER})
-target_link_libraries(mod_ai_media PRIVATE ai_media_core ${FREESWITCH_LIBRARIES})
+target_link_libraries(mod_ai_media PRIVATE ai_media_core libwsc ${FREESWITCH_LIBRARIES})
 
 include(CTest)
 if(BUILD_TESTING)
@@ -30,4 +41,3 @@ if(BUILD_TESTING)
     target_link_libraries(ai_media_tests PRIVATE ai_media_core)
     add_test(NAME ai_media_tests COMMAND ai_media_tests)
 endif()
-
