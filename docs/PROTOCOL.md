@@ -34,3 +34,4 @@ The module sends one UTF-8 JSON text frame after connecting:
 
 `playback.clear` is the barge-in primitive. It must atomically discard queued playback without stopping caller capture.
 
+`playback.pause` pauses only AI playback. Caller audio continues streaming so the AI/VAD can detect speech and decide when to clear or resume playback.
