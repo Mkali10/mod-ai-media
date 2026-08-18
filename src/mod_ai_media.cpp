@@ -12,7 +12,15 @@ namespace {
 constexpr const char* kBugName = "mod_ai_media";
 constexpr const char* kPrivateKey = "mod_ai_media_bug";
 constexpr const char* kSyntax = "<uuid> <start <ws-url> [metadata]|stop|clear|pause|resume|status>";
+constexpr const char* kAppSyntax = "<start <ws-url> [metadata]|stop|clear|pause|resume|status>";
 using SessionPtr = std::shared_ptr<ai_media::Session>;
+
+bool allowed_url(const char* url) {
+    if (!url) return false;
+    return std::strncmp(url, "wss://", 6) == 0 ||
+           std::strncmp(url, "ws://127.0.0.1:", 15) == 0 ||
+           std::strncmp(url, "ws://[::1]:", 11) == 0;
+}
 
 SessionPtr get_session(switch_media_bug_t* bug) {
     if (!bug) return {};
@@ -57,8 +65,9 @@ void start_media(switch_core_session_t* fs_session, const char* url, const char*
         stream->write_function(stream, "-ERR already started\n");
         return;
     }
-    if (!url || std::strncmp(url, "wss://", 6) != 0) {
-        stream->write_function(stream, "-ERR ws-url must begin with wss://\n");
+    if (!allowed_url(url)) {
+        stream->write_function(stream,
+            "-ERR use wss://, or ws://127.0.0.1 for same-host loopback only\n");
         return;
     }
     if (switch_channel_pre_answer(channel) != SWITCH_STATUS_SUCCESS) {
@@ -118,6 +127,46 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_ai_media_load);
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_ai_media_shutdown);
 SWITCH_MODULE_DEFINITION(mod_ai_media, mod_ai_media_load, mod_ai_media_shutdown, nullptr);
 
+SWITCH_STANDARD_APP(ai_media_app) {
+    switch_stream_handle_t stream = {0};
+    SWITCH_STANDARD_STREAM(stream);
+    char* command = data ? strdup(data) : nullptr;
+    char* argv[3] = {};
+    const int argc = command ? switch_separate_string(command, ' ', argv, 3) : 0;
+
+    if (argc < 1) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
+                          "Usage: ai_media %s\n", kAppSyntax);
+    } else {
+        switch_channel_t* channel = switch_core_session_get_channel(session);
+        auto* bug = static_cast<switch_media_bug_t*>(
+            switch_channel_get_private(channel, kPrivateKey));
+        const std::string action(argv[0]);
+        if (action == "start") {
+            start_media(session, argc > 1 ? argv[1] : nullptr,
+                        argc > 2 ? argv[2] : nullptr, &stream);
+        } else if (action == "stop") {
+            stop_media(session, &stream);
+        } else if (!bug) {
+            stream.write_function(&stream, "-ERR not started\n");
+        } else {
+            auto media = get_session(bug);
+            if (!media) stream.write_function(&stream, "-ERR session state unavailable\n");
+            else if (action == "clear") { media->clear_playback(); stream.write_function(&stream, "+OK playback cleared\n"); }
+            else if (action == "pause") { media->set_paused(true); media->clear_playback(); stream.write_function(&stream, "+OK paused\n"); }
+            else if (action == "resume") { media->set_paused(false); stream.write_function(&stream, "+OK resumed\n"); }
+            else stream.write_function(&stream, "-ERR unsupported action\n");
+        }
+    }
+
+    if (stream.data) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO,
+                          "ai_media: %s", static_cast<const char*>(stream.data));
+    }
+    switch_safe_free(stream.data);
+    switch_safe_free(command);
+}
+
 SWITCH_STANDARD_API(uuid_ai_media_api) {
     if (!cmd || !*cmd) {
         stream->write_function(stream, "-USAGE uuid_ai_media %s\n", kSyntax);
@@ -165,9 +214,13 @@ SWITCH_STANDARD_API(uuid_ai_media_api) {
 
 SWITCH_MODULE_LOAD_FUNCTION(mod_ai_media_load) {
     switch_api_interface_t* api_interface = nullptr;
+    switch_application_interface_t* app_interface = nullptr;
     *module_interface = switch_loadable_module_create_module_interface(pool, modname);
     SWITCH_ADD_API(api_interface, "uuid_ai_media", "Bidirectional raw PCM media",
                    uuid_ai_media_api, kSyntax);
+    SWITCH_ADD_APP(app_interface, "ai_media", "Attach bidirectional raw PCM media",
+                   "Attach the current call to a media WebSocket", ai_media_app,
+                   kAppSyntax, SAF_NONE);
     switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_NOTICE, "mod_ai_media loaded\n");
     return SWITCH_STATUS_SUCCESS;
 }
