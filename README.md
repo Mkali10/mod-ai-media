@@ -153,11 +153,14 @@ uuid_ai_media <uuid> stop
 
 Use `show channels` in `fs_cli` to locate the UUID of an active test call.
 
-For normal routing, use the native dialplan application:
+For normal routing, attach the media service and then keep an outbound media clock active. A parked single-leg call does not reliably generate the write frames required by `SMBF_WRITE_REPLACE`.
 
 ```xml
 <action application="ai_media" data="start ws://127.0.0.1:8765/ws pipecat_test"/>
+<action application="playback" data="silence_stream://-1"/>
 ```
+
+The silence stream is not heard: its decoded frames are replaced by queued PCM from the media service. It runs until hangup and keeps caller capture active for barge-in. Do not replace it with `park` for this integration.
 
 The complete extension and Pipecat server are available in [`examples/pipecat-bot`](examples/pipecat-bot).
 
@@ -250,7 +253,27 @@ export PKG_CONFIG_PATH=/usr/local/freeswitch/lib/pkgconfig
 bash scripts/build.sh
 ```
 
-After rebuilding, repeat `file` and `ldd` validation before replacing a loaded module. Do not overwrite a module while it is loaded; unload it during a controlled maintenance/test window first.
+After rebuilding, repeat `file` and `ldd` validation before replacing a loaded module. Do not overwrite a module while it is loaded.
+
+Safe module-only deployment during a controlled maintenance window:
+
+```bash
+# Confirm that no calls are attached to mod_ai_media before proceeding.
+/usr/local/freeswitch/bin/fs_cli -x "show channels"
+
+/usr/local/freeswitch/bin/fs_cli -x "unload mod_ai_media"
+/usr/local/freeswitch/bin/fs_cli -x "module_exists mod_ai_media"
+
+install -m 755 \
+  /usr/src/mod-ai-media/build/mod_ai_media.so \
+  /usr/local/freeswitch/mod/mod_ai_media.so
+
+/usr/local/freeswitch/bin/fs_cli -x "load mod_ai_media"
+/usr/local/freeswitch/bin/fs_cli -x "module_exists mod_ai_media"
+/usr/local/freeswitch/bin/fs_cli -x "reloadxml"
+```
+
+Expected states are `false` immediately after unload and `true` after load. This sequence does not restart FreeSWITCH or change SIP profiles. If the shared object was overwritten while loaded and `/proc/<freeswitch-pid>/maps` shows `mod_ai_media.so (deleted)`, use a controlled FreeSWITCH restart only after draining calls; an unload/load may retain the old mapped binary.
 
 ## Troubleshooting
 
@@ -277,9 +300,36 @@ The UUID must belong to a currently active call. Run `show channels` again.
 
 Check DNS, certificate trust, firewall access and WSS service logs. The asynchronous connection may also still be starting; check status again after the handshake.
 
+### Caller audio is missing and the log repeats `frame buffer too small`
+
+The media-bug read frame must have caller-owned storage before `switch_core_media_bug_read` is called. Current source allocates `SWITCH_RECOMMENDED_BUFFER_SIZE`, assigns `frame.data` and `frame.buflen`, and then drains decoded PCM.
+
+### AI audio is generated but the caller hears silence
+
+Confirm the backend logs binary `AUDIO OUT` frames and `uuid_ai_media <uuid> status` reports `connected=true`. The dialplan must keep outgoing decoded frames active:
+
+```xml
+<action application="playback" data="silence_stream://-1"/>
+```
+
+Using only `park` can leave the write-replace media bug without a reliable outbound media clock.
+
+### `queued_bytes` is blank
+
+FreeSWITCH's stream formatter on the validated build did not render `%zu`. Current source prints the bounded queue depth with `%u` and an explicit unsigned cast.
+
 ### Playback is choppy or distorted
 
-Verify exact PCM16 little-endian mono format, output sample rate, frame pacing, backend buffer size and network jitter. Do not send WAV headers, MP3, Opus or encoded telephony payloads as binary playback frames.
+Verify exact PCM16 little-endian mono format, output sample rate, frame pacing, backend buffer size and network jitter. Do not send WAV headers, MP3, Opus or encoded telephony payloads as binary playback frames. Playback frames are sized from `frame.samples * sizeof(int16_t)`, not the encoded PCMU/PCMA payload length.
+
+### Verify that the base SIP/RTP path is still healthy
+
+Before changing SIP profiles or codecs, test FreeSWITCH's built-in extensions:
+
+- `9198`: tone test for the server-to-caller path
+- `9196`: echo test for both media directions
+
+If both are clear, keep SIP, RTP and codec configuration unchanged and troubleshoot only the module/media-service path.
 
 ## Compatibility and non-interference
 

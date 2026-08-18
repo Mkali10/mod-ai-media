@@ -40,18 +40,32 @@ switch_bool_t media_callback(switch_media_bug_t* bug, void* user_data, switch_ab
     if (!holder || !*holder) return SWITCH_TRUE;
     auto session = *holder;
     if (type == SWITCH_ABC_TYPE_READ) {
+        std::uint8_t read_buffer[SWITCH_RECOMMENDED_BUFFER_SIZE] = {};
         switch_frame_t frame = {};
+        frame.data = read_buffer;
+        frame.buflen = sizeof(read_buffer);
+
         while (switch_core_media_bug_read(bug, &frame, SWITCH_TRUE) == SWITCH_STATUS_SUCCESS) {
             if (frame.data && frame.datalen) session->send_caller_audio(frame.data, frame.datalen);
         }
     } else if (type == SWITCH_ABC_TYPE_WRITE_REPLACE) {
         switch_frame_t* frame = switch_core_media_bug_get_write_replace_frame(bug);
-        if (frame && frame->data && frame->buflen) {
-            const std::size_t wanted = std::min<std::size_t>(frame->datalen, frame->buflen);
+        if (frame && frame->data && frame->buflen && frame->samples) {
+            const std::size_t pcm_bytes =
+                static_cast<std::size_t>(frame->samples) * sizeof(std::int16_t);
+            const std::size_t wanted =
+                std::min<std::size_t>(pcm_bytes, frame->buflen);
             const std::size_t got = session->read_playback(frame->data, wanted);
+
             if (got < wanted) {
-                std::memset(static_cast<std::uint8_t*>(frame->data) + got, 0, wanted - got);
+                std::memset(
+                    static_cast<std::uint8_t*>(frame->data) + got,
+                    0,
+                    wanted - got);
             }
+
+            frame->datalen = static_cast<uint32_t>(wanted);
+            frame->samples = static_cast<uint32_t>(wanted / sizeof(std::int16_t));
             switch_core_media_bug_set_write_replace_frame(bug, frame);
         }
     }
@@ -202,9 +216,9 @@ SWITCH_STANDARD_API(uuid_ai_media_api) {
         else if (action == "pause") { session->set_paused(true); session->clear_playback(); stream->write_function(stream, "+OK paused\n"); }
         else if (action == "resume") { session->set_paused(false); stream->write_function(stream, "+OK resumed\n"); }
         else if (action == "status") stream->write_function(stream,
-            "+OK connected=%s paused=%s queued_bytes=%zu\n",
+            "+OK connected=%s paused=%s queued_bytes=%u\n",
             session->connected() ? "true" : "false", session->paused() ? "true" : "false",
-            session->queued_bytes());
+            static_cast<unsigned int>(session->queued_bytes()));
         else stream->write_function(stream, "-USAGE uuid_ai_media %s\n", kSyntax);
     }
     switch_core_session_rwunlock(fs_session);
