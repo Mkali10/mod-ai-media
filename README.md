@@ -124,6 +124,9 @@ true
 
 Manual loading is intentionally used during validation. Automatic loading should be configured only after live-call and stability testing is complete.
 
+<img width="1091" height="682" alt="image" src="https://github.com/user-attachments/assets/e1cac874-cfdd-4137-9369-cad85d704cdf" />
+
+
 ## Command reference
 
 All commands operate on an active FreeSWITCH call UUID.
