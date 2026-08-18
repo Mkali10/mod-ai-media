@@ -4,3 +4,15 @@
 *.a
 core
 core.*
+
+# Never commit runtime credentials or private TLS material.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.pem
+*.p12
+*.pfx
