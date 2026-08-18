@@ -94,7 +94,8 @@ void Session::disconnect() noexcept {
     client_->disconnect(); clear_playback();
 }
 void Session::send_caller_audio(const void* data, std::size_t size) noexcept {
-    if (connected() && !closing() && !paused() && data && size)
+    // Playback pause must never stop caller capture; this is required for barge-in.
+    if (connected() && !closing() && data && size)
         client_->sendBinary(static_cast<std::uint8_t*>(const_cast<void*>(data)), size);
 }
 std::size_t Session::read_playback(void* output, std::size_t size) noexcept {
