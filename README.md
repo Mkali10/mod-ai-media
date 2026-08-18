@@ -2,7 +2,7 @@
 
 Language-neutral bidirectional raw-audio module for FreeSWITCH.
 
-> Status: Milestone 0 scaffold. Do not install on production FreeSWITCH yet.
+> Status: development preview. Do not install on production FreeSWITCH yet.
 
 ## Goals
 
@@ -14,7 +14,7 @@ Language-neutral bidirectional raw-audio module for FreeSWITCH.
 
 ## Safety
 
-This module is developed side-by-side with `mod_audio_stream`; it does not replace it. The current scaffold only registers the `uuid_ai_media` API and returns `-ERR not implemented` for media actions.
+This module is developed side-by-side with `mod_audio_stream`; it does not replace it. Native-rate PCM capture/playback and lifecycle code are under active validation. Build and test only on a non-production call path.
 
 ## Build
 
@@ -28,4 +28,3 @@ ctest --test-dir build --output-on-failure
 ## Protocol
 
 See [docs/PROTOCOL.md](docs/PROTOCOL.md).
-
