@@ -26,8 +26,9 @@ File-based playback adds disk I/O, queueing delay and cleanup complexity to conv
 - Playback `clear`, `pause`, `resume` and `stop` controls
 - Caller capture remains active during playback pause for reliable barge-in
 - Manual status reporting with queue depth
-- Secure `wss://` transport only
+- Secure `wss://` transport for remote services; plaintext is allowed only on exact OS loopback addresses
 - No changes to an existing dialplan are required for manual API-driven testing
+- Native `ai_media` dialplan application for normal call routing
 - Can coexist with `mod_audio_stream`; it does not replace or modify that module
 
 ## Media path
@@ -149,6 +150,14 @@ uuid_ai_media <uuid> stop
 
 Use `show channels` in `fs_cli` to locate the UUID of an active test call.
 
+For normal routing, use the native dialplan application:
+
+```xml
+<action application="ai_media" data="start ws://127.0.0.1:8765/ws pipecat_test"/>
+```
+
+The complete extension and Pipecat server are available in [`examples/pipecat-bot`](examples/pipecat-bot).
+
 ## Live-call test sequence
 
 1. Start a trusted WSS media service implementing [Protocol v1](docs/PROTOCOL.md).
@@ -189,7 +198,7 @@ Emotion, intent, language detection and conversational policy belong to the back
 
 ## Security
 
-- Only `wss://` endpoints are accepted.
+- Remote endpoints must use `wss://`. Plain `ws://` is accepted only for exact same-host loopback (`127.0.0.1` or `::1`), where traffic never leaves the server.
 - Call audio and metadata must never be sent over plaintext WebSockets.
 - Use a certificate trusted by the server operating system.
 - Keep media endpoints private or authenticated at the reverse proxy/service layer.
@@ -239,9 +248,6 @@ bash scripts/build.sh
 ```
 
 After rebuilding, repeat `file` and `ldd` validation before replacing a loaded module. Do not overwrite a module while it is loaded; unload it during a controlled maintenance/test window first.
-
-<img width="1091" height="682" alt="image" src="https://github.com/user-attachments/assets/f05a081a-3b06-41d1-9860-147f8cd1007c" />
-
 
 ## Troubleshooting
 
